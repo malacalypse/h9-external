@@ -9,6 +9,8 @@
 #include "ext.h"							// standard Max include, always required
 #include "ext_obex.h"						// required for new style Max object
 
+#include "h9.h"
+
 ////////////////////////// object struct
 
 typedef struct _h9_external {
@@ -18,9 +20,8 @@ typedef struct _h9_external {
     void *m_outlet_sysex;
     void *m_outlet_enabled;
 
-    // Configuration
-    uint8_t sysex_id;
-    uint8_t midi_channel;
+    // libh9 object
+    h9* h9;
 } t_h9_external;
 
 ///////////////////////// function prototypes
@@ -33,6 +34,7 @@ void h9_external_bang(t_h9_external *x);
 void h9_external_identify(t_h9_external *x);
 void h9_external_set(t_h9_external *x, t_symbol *s, long ac, t_atom *av);
 void h9_external_int(t_h9_external *x, long n);
+void h9_external_list(t_h9_external *x, t_symbol *msg, long argc, t_atom *argv);
 
 //////////////////////// global class pointer variable
 void *h9_external_class;
@@ -45,10 +47,11 @@ void ext_main(void *r)
 				  0L /* leave NULL!! */, A_GIMME, 0);
 
     // Declare the responding methods for various type handlers
-	class_addmethod(c, (method)h9_external_bang,			"bang", 0);
-	class_addmethod(c, (method)h9_external_int,			"int",		A_LONG, 0);
-	class_addmethod(c, (method)h9_external_identify,		"identify", 0);
-    class_addmethod(c, (method)h9_external_set,          "set", A_GIMME, 0);
+	class_addmethod(c, (method)h9_external_bang,	 "bang", 0);
+	class_addmethod(c, (method)h9_external_int,		 "int",		A_LONG, 0);
+	class_addmethod(c, (method)h9_external_identify, "identify", 0);
+    class_addmethod(c, (method)h9_external_set,      "set", A_GIMME, 0);
+    class_addmethod(c, (method)h9_external_list,     "list", A_GIMME, 0);
     CLASS_METHOD_ATTR_PARSE(c, "identify", "undocumented", gensym("long"), 0, "1");
 
 	/* you CAN'T call this from the patcher */
@@ -76,8 +79,12 @@ void *h9_external_new(t_symbol *s, long argc, t_atom *argv)
         x->m_outlet_sysex = listout((t_object *)x);
 
         // Init the zero state of the object
-        x->sysex_id = 1; // not 0
-        x->midi_channel = 0;
+        x->h9 = h9_new();
+        if(x->h9 == NULL) {
+            h9_external_free(x);
+            object_free(x);
+            x = NULL;
+        }
     }
 
     return (x);
@@ -118,6 +125,30 @@ void h9_external_int(t_h9_external *x, long n)
     object_post((t_object *)x, "Processing int %ld", n);
 }
 
+void h9_external_list(t_h9_external *x, t_symbol *msg, long argc, t_atom *argv) {
+    char list[argc];
+    long i = 0;
+    for (; i < argc; i++) {
+        if (atom_gettype(&argv[i]) != A_LONG) {
+            object_post((t_object *)x, "List contains non-integer values, refusing to parse further.");
+            return;
+        }
+        long value = atom_getlong(&argv[i]);
+        if (value > UINT8_MAX) {
+            object_post((t_object *)x, "List does not contain character-value integers, refusing to parse further.");
+            return;
+        }
+        list[i] = (char)value;
+    }
+    object_post((t_object *)x, "Received list of %d characters.", i);
+    if (h9_load(x->h9, (uint8_t *)list, i) == kH9_OK) {
+        object_post((t_object *)x, "Successfully loaded preset %s.", x->h9->preset->name);
+    } else {
+        object_post((t_object *)x, "Not a preset, ignored.");
+    }
+
+}
+
 void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv)
 {
     long i;
@@ -152,8 +183,16 @@ void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv)
 
 void h9_external_bang(t_h9_external *x)
 {
-    // Ordinarily, this would dump the current state to sysex. For now, that's not yet ready.
     object_post((t_object *)x, "%s says \"Bang!\"", x->name->s_name);
+    uint8_t sysex_buffer[1000];
+    t_atom list[1000];
+    size_t bytes_written = h9_dump(x->h9, sysex_buffer, 1000, true);
+    if (bytes_written > 0) {
+        for (size_t i = 0; i < bytes_written; i++) {
+            atom_setlong(&list[i], sysex_buffer[i]);
+        }
+        outlet_list(x->m_outlet_sysex, gensym("sysex"), bytes_written, list);
+    }
 }
 
 void h9_external_identify(t_h9_external *x)

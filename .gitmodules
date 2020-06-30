@@ -1,0 +1,3 @@
+[submodule "lib/h9"]
+	path = lib/h9
+	url = git@github.com:malacalypse/h9.git
