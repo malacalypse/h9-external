@@ -13,12 +13,21 @@
 
 ////////////////////////// object struct
 
+typedef enum knobmode {
+    kKnobMode_Normal = 0U,
+    kKnobMode_ExpMin,
+    kKnobMode_ExpMax,
+    kKnobMode_PSW,
+} knobmode;
+
 typedef struct _h9_external {
     t_object  ob;
     t_symbol *name;
 
     long  proxy_num;
     void *proxy_list_controls;
+
+    knobmode knobmode;
 
     // Listed Right to Left
     void *m_outlet_enabled;  // Unused for now, will be used for M4L instance syncing
@@ -45,14 +54,16 @@ void h9_external_set(t_h9_external *x, t_symbol *s, long ac, t_atom *av);
 void h9_external_list(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
 void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
 
-static void output_cc(void *ctx, uint8_t midi_channel, uint8_t cc, uint8_t msb, uint8_t lsb);
-static void output_sysex(void *ctx, uint8_t *sysex, size_t len);
+static void h9_cc_callback_handler(void *ctx, uint8_t midi_channel, uint8_t cc, uint8_t msb, uint8_t lsb);
+static void h9_sysex_callback_handler(void *ctx, uint8_t *sysex, size_t len);
+static void h9_display_callback_handler(void *ctx, control_id control, control_value current_value, control_value display_value);
+
 static void output_state(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
 
 static void input_midi(t_h9_external *x, long argc, t_atom *argv);
 static void input_control(t_h9_external *x, long argc, t_atom *argv);
 
-static void send_control(void *ctx, control_id control, control_value current_value, control_value display_value);
+static void send_control(t_h9_external *x, control_id control, control_value current_value, control_value display_value);
 static void send_knobmode(t_h9_external *x);
 static void send_rx_cc(t_h9_external *x);
 static void send_tx_cc(t_h9_external *x);
@@ -70,9 +81,10 @@ static void set_sysex_id(t_h9_external *x, long argc, t_atom *argv);
 static void set_module(t_h9_external *x, long argc, t_atom *argv);
 static void set_algorithm(t_h9_external *x, long argc, t_atom *argv);
 static void set_knobmode(t_h9_external *x, long argc, t_atom *argv);
+static void set_control(t_h9_external *x, long argc, t_atom *argv);
 
 // Callback handlers
-static void output_cc(void *ctx, uint8_t midi_channel, uint8_t cc, uint8_t msb, uint8_t lsb) {
+static void h9_cc_callback_handler(void *ctx, uint8_t midi_channel, uint8_t cc, uint8_t msb, uint8_t lsb) {
     t_h9_external *x = (t_h9_external *)ctx;
     t_atom         list[2];
     atom_setlong(&list[0], cc);
@@ -80,7 +92,7 @@ static void output_cc(void *ctx, uint8_t midi_channel, uint8_t cc, uint8_t msb, 
     outlet_list(x->m_outlet_cc, gensym("list"), 2, list);
 }
 
-static void output_sysex(void *ctx, uint8_t *sysex, size_t len) {
+static void h9_sysex_callback_handler(void *ctx, uint8_t *sysex, size_t len) {
     t_h9_external *x = (t_h9_external *)ctx;
     if (len > 0) {
         // Big atom lists of sysex might be a bit large for the stack, so ask for heap
@@ -94,6 +106,13 @@ static void output_sysex(void *ctx, uint8_t *sysex, size_t len) {
         }
         outlet_list(x->m_outlet_sysex, gensym("list"), len, list);
         free(list);
+    }
+}
+
+static void h9_display_callback_handler(void *ctx, control_id control, control_value current_value, control_value display_value) {
+    t_h9_external *x = (t_h9_external *)ctx;
+    if (x->knobmode == kKnobMode_Normal) {
+        send_control(x, control, current_value, display_value);
     }
 }
 
@@ -153,18 +172,49 @@ static void input_midi(t_h9_external *x, long argc, t_atom *argv) {
 }
 
 static void input_control(t_h9_external *x, long argc, t_atom *argv) {
-    if (argc >= 2 && atom_gettype(&argv[0]) == A_LONG && atom_gettype(&argv[1])) {
-        control_id    control = (control_id)atom_getlong(&argv[0]);
-        control_value value   = atom_getfloat(&argv[1]);
-        // object_post((t_object *)x, "INPUT (knob list): setting knob %d to %f.", control, value);
-        h9_setControl(x->h9, control, value, kH9_TRIGGER_CALLBACK);
-        send_dirty(x);
+    set_control(x, argc, argv);
+}
+
+static void update_knobs(t_h9_external *x) {
+    switch(x->knobmode) {
+        case kKnobMode_ExpMin:
+            for (size_t i = 0; i < H9_NUM_KNOBS; i++) {
+                control_value exp_min;
+                control_value exp_max;
+                control_value psw;
+                h9_knobMap(x->h9, (control_id)i, &exp_min, &exp_max, &psw);
+                send_control(x, (control_id)i, exp_min, exp_max);
+            }
+            break;
+        case kKnobMode_ExpMax:
+            for (size_t i = 0; i < H9_NUM_KNOBS; i++) {
+                control_value exp_min;
+                control_value exp_max;
+                control_value psw;
+                h9_knobMap(x->h9, (control_id)i, &exp_min, &exp_max, &psw);
+                send_control(x, (control_id)i, exp_max, exp_min);
+            }
+            break;
+        case kKnobMode_PSW:
+            for (size_t i = 0; i < H9_NUM_KNOBS; i++) {
+                control_value exp_min;
+                control_value exp_max;
+                control_value psw;
+                h9_knobMap(x->h9, (control_id)i, &exp_min, &exp_max, &psw);
+                send_control(x, (control_id)i, psw, h9_controlValue(x->h9, (control_id)i));
+            }
+            break;
+        default:
+            x->knobmode = kKnobMode_Normal;
+            for (size_t i = 0; i < H9_NUM_KNOBS; i++) {
+                control_value current_value = h9_controlValue(x->h9, (control_id)i);
+                control_value display_value = h9_displayValue(x->h9, (control_id)i);
+                send_control(x, (control_id)i, current_value, display_value);
+            }
     }
 }
 
-static void send_control(void *ctx, control_id control, control_value current_value, control_value display_value) {
-    t_h9_external *x = (t_h9_external *)ctx;
-    // object_post((t_object *)x, "OUTPUT (knobs): %d => [%f, %f]", control, current_value, display_value);
+static void send_control(t_h9_external *x, control_id control, control_value current_value, control_value display_value) {
     t_atom list[3];
     atom_setlong(&list[0], control);
     atom_setfloat(&list[1], current_value);
@@ -174,7 +224,19 @@ static void send_control(void *ctx, control_id control, control_value current_va
 
 static void send_knobmode(t_h9_external *x) {
     t_atom atom;
-    atom_setsym(&atom, gensym("fnord"));
+    switch(x->knobmode) {
+        case kKnobMode_ExpMin:
+            atom_setsym(&atom, gensym("exp_min"));
+            break;
+        case kKnobMode_ExpMax:
+            atom_setsym(&atom, gensym("exp_max"));
+            break;
+        case kKnobMode_PSW:
+            atom_setsym(&atom, gensym("psw"));
+            break;
+        default:
+            atom_setsym(&atom, gensym("normal"));
+    }
     output_state(x, gensym("knobmode"), 1, &atom);
 }
 
@@ -260,6 +322,40 @@ static bool validate_atom_as_cc(t_atom *atom, uint8_t *cc) {
     return true;
 }
 
+static void set_control(t_h9_external *x, long argc, t_atom* argv) {
+    if (argc >= 2 && atom_gettype(&argv[0]) == A_LONG && atom_gettype(&argv[1])) {
+        control_id    control = (control_id)atom_getlong(&argv[0]);
+        control_value new_value   = atom_getfloat(&argv[1]);
+
+        if (control >= H9_NUM_KNOBS) {
+            // It's not a knob, handle it separately
+            h9_setControl(x->h9, control, new_value, kH9_TRIGGER_CALLBACK);
+        } else {
+            control_value exp_min;
+            control_value exp_max;
+            control_value psw;
+
+            switch(x->knobmode) {
+                case kKnobMode_ExpMin:
+                    h9_knobMap(x->h9, control, &exp_min, &exp_max, &psw);
+                    h9_setKnobMap(x->h9, control, new_value, exp_max, psw);
+                    break;
+                case kKnobMode_ExpMax:
+                    h9_knobMap(x->h9, control, &exp_min, &exp_max, &psw);
+                    h9_setKnobMap(x->h9, control, exp_min, new_value, psw);
+                    break;
+                case kKnobMode_PSW:
+                    h9_knobMap(x->h9, control, &exp_min, &exp_max, &psw);
+                    h9_setKnobMap(x->h9, control, exp_min, exp_max, new_value);
+                    break;
+                default:
+                    h9_setControl(x->h9, control, new_value, kH9_TRIGGER_CALLBACK);
+            }
+        }
+        send_dirty(x);
+    }
+}
+
 static void set_midi_cc(t_h9_external *x, uint8_t *cc_map, long argc, t_atom *argv) {
     uint8_t list[NUM_CONTROLS];
     if (argc == 2) {
@@ -337,9 +433,23 @@ static void set_algorithm(t_h9_external *x, long argc, t_atom *argv) {
 static void set_knobmode(t_h9_external *x, long argc, t_atom *argv) {
     if (argc > 0) {
         t_symbol *knobmode = atom_getsym(argv);
-        object_post((t_object *)x, "Knob Mode %s", knobmode->s_name);
+        if (knobmode == gensym("exp_min")) {
+                x->knobmode = kKnobMode_ExpMin;
+                update_knobs(x);
+        } else if (knobmode == gensym("exp_max")) {
+                x->knobmode = kKnobMode_ExpMax;
+                update_knobs(x);
+        } else if (knobmode == gensym("psw")) {
+                x->knobmode = kKnobMode_PSW;
+                update_knobs(x);
+        } else {
+                x->knobmode = kKnobMode_Normal;
+                update_knobs(x);
+        }
     } else {
-        object_post((t_object *)x, "Ignoring blank knobmode.");
+        // Set it to normal.
+        x->knobmode = kKnobMode_Normal;
+        update_knobs(x);
     }
 }
 
@@ -397,10 +507,11 @@ void *h9_external_new(t_symbol *s, long argc, t_atom *argv) {
         x->m_outlet_state   = listout((t_object *)x);
 
         // Init the zero state of the object
+        x->knobmode = kKnobMode_Normal;
         x->h9                   = h9_new();
-        x->h9->cc_callback      = output_cc;
-        x->h9->display_callback = send_control;
-        x->h9->sysex_callback   = output_sysex;
+        x->h9->cc_callback      = h9_cc_callback_handler;
+        x->h9->display_callback = h9_display_callback_handler;
+        x->h9->sysex_callback   = h9_sysex_callback_handler;
         x->h9->callback_context = x;
 
         if (x->h9 == NULL) {
@@ -546,7 +657,7 @@ void h9_external_bang(t_h9_external *x) {
     object_post((t_object *)x, "%s says \"Bang!\"", x->name->s_name);
     uint8_t sysex_buffer[1000];
     size_t  bytes_written = h9_dump(x->h9, sysex_buffer, 1000, true);
-    output_sysex((void *)x, sysex_buffer, bytes_written);
+    h9_sysex_callback_handler((void *)x, sysex_buffer, bytes_written);
     send_dirty(x);
     send_module(x);
     send_algorithms(x);
