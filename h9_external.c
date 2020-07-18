@@ -58,6 +58,7 @@ static void h9_cc_callback_handler(void *ctx, uint8_t midi_channel, uint8_t cc, 
 static void h9_sysex_callback_handler(void *ctx, uint8_t *sysex, size_t len);
 static void h9_display_callback_handler(void *ctx, control_id control, control_value current_value, control_value display_value);
 
+static void output_sysex(t_h9_external *x, uint8_t *sysex, size_t len);
 static void output_state(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
 
 static void input_midi(t_h9_external *x, long argc, t_atom *argv);
@@ -74,6 +75,9 @@ static void send_name(t_h9_external *x);
 static void send_module(t_h9_external *x);
 static void send_algorithm(t_h9_external *x);
 static void send_algorithms(t_h9_external *x);
+static void send_preset_name(t_h9_external *x);
+static void request_device_config(t_h9_external *x);
+static void request_device_program(t_h9_external *x);
 static bool validate_atom_as_cc(t_atom *atom, uint8_t *cc);
 static void set_midi_cc(t_h9_external *x, uint8_t *cc_map, long argc, t_atom *argv);
 static void set_midi_channel(t_h9_external *x, long argc, t_atom *argv);
@@ -82,6 +86,7 @@ static void set_module(t_h9_external *x, long argc, t_atom *argv);
 static void set_algorithm(t_h9_external *x, long argc, t_atom *argv);
 static void set_knobmode(t_h9_external *x, long argc, t_atom *argv);
 static void set_control(t_h9_external *x, long argc, t_atom *argv);
+static void set_preset_name(t_h9_external *x, long argc, t_atom *argv);
 
 // Callback handlers
 static void h9_cc_callback_handler(void *ctx, uint8_t midi_channel, uint8_t cc, uint8_t msb, uint8_t lsb) {
@@ -94,6 +99,27 @@ static void h9_cc_callback_handler(void *ctx, uint8_t midi_channel, uint8_t cc, 
 
 static void h9_sysex_callback_handler(void *ctx, uint8_t *sysex, size_t len) {
     t_h9_external *x = (t_h9_external *)ctx;
+    output_sysex(x, sysex, len);
+}
+
+static void h9_display_callback_handler(void *ctx, control_id control, control_value current_value, control_value display_value) {
+    t_h9_external *x = (t_h9_external *)ctx;
+    if (x->knobmode == kKnobMode_Normal) {
+        send_control(x, control, display_value, current_value);
+    }
+}
+
+static void output_state(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
+    size_t len = argc + 1;
+    t_atom list[len];
+    atom_setsym(list, s);
+    for (size_t i = 0; i < argc; i++) {
+        memcpy(&list[i + 1], &argv[i], sizeof(t_atom));
+    }
+    outlet_list(x->m_outlet_state, gensym("list"), len, list);
+}
+
+static void output_sysex(t_h9_external *x, uint8_t *sysex, size_t len) {
     if (len > 0) {
         // Big atom lists of sysex might be a bit large for the stack, so ask for heap
         t_atom *list = malloc(sizeof(t_atom) * len);
@@ -106,13 +132,6 @@ static void h9_sysex_callback_handler(void *ctx, uint8_t *sysex, size_t len) {
         }
         outlet_list(x->m_outlet_sysex, gensym("list"), len, list);
         free(list);
-    }
-}
-
-static void h9_display_callback_handler(void *ctx, control_id control, control_value current_value, control_value display_value) {
-    t_h9_external *x = (t_h9_external *)ctx;
-    if (x->knobmode == kKnobMode_Normal) {
-        send_control(x, control, current_value, display_value);
     }
 }
 
@@ -160,6 +179,7 @@ static void input_midi(t_h9_external *x, long argc, t_atom *argv) {
                     send_module(x);
                     send_algorithms(x);
                     send_algorithm(x);
+                    send_preset_name(x);
                 } else {
                     object_post((t_object *)x, "INPUT (list): Not a preset, ignored.");
                 }
@@ -176,7 +196,7 @@ static void input_control(t_h9_external *x, long argc, t_atom *argv) {
 }
 
 static void update_knobs(t_h9_external *x) {
-    switch(x->knobmode) {
+    switch (x->knobmode) {
         case kKnobMode_ExpMin:
             for (size_t i = 0; i < H9_NUM_KNOBS; i++) {
                 control_value exp_min;
@@ -209,22 +229,22 @@ static void update_knobs(t_h9_external *x) {
             for (size_t i = 0; i < H9_NUM_KNOBS; i++) {
                 control_value current_value = h9_controlValue(x->h9, (control_id)i);
                 control_value display_value = h9_displayValue(x->h9, (control_id)i);
-                send_control(x, (control_id)i, current_value, display_value);
+                send_control(x, (control_id)i, display_value, current_value);
             }
     }
 }
 
-static void send_control(t_h9_external *x, control_id control, control_value current_value, control_value display_value) {
+static void send_control(t_h9_external *x, control_id control, control_value current_value, control_value alternate_value) {
     t_atom list[3];
     atom_setlong(&list[0], control);
     atom_setfloat(&list[1], current_value);
-    atom_setfloat(&list[2], display_value);
+    atom_setfloat(&list[2], alternate_value);
     output_state(x, gensym("control"), 3, list);
 }
 
 static void send_knobmode(t_h9_external *x) {
     t_atom atom;
-    switch(x->knobmode) {
+    switch (x->knobmode) {
         case kKnobMode_ExpMin:
             atom_setsym(&atom, gensym("exp_min"));
             break;
@@ -276,8 +296,14 @@ static void send_dirty(t_h9_external *x) {
 
 static void send_name(t_h9_external *x) {
     t_atom atom;
-    atom_setsym(&atom, gensym(x->h9->name));
+    atom_setsym(&atom, x->name);
     output_state(x, gensym("name"), 1, &atom);
+}
+
+static void send_preset_name(t_h9_external *x) {
+    t_atom atom;
+    atom_setsym(&atom, gensym(x->h9->preset->name));
+    output_state(x, gensym("preset_name"), 1, &atom);
 }
 
 static void send_module(t_h9_external *x) {
@@ -304,6 +330,39 @@ static void send_algorithms(t_h9_external *x) {
     output_state(x, gensym("algorithms"), num_algs, module_algorithms);
 }
 
+static void request_device_program(t_h9_external *x) {
+    size_t  len = 128;
+    uint8_t sysex[len];
+    size_t  actual_len = h9_sysexGenRequestCurrentPreset(x->h9, sysex, len);
+    if (actual_len < len) {
+        output_sysex(x, sysex, actual_len);
+    }
+}
+
+static void request_device_config(t_h9_external *x) {
+    size_t  len = 128;
+    uint8_t sysex[len];
+    size_t  actual_len = h9_sysexGenRequestSystemConfig(x->h9, sysex, len);
+    if (actual_len < len) {
+        output_sysex(x, sysex, actual_len);
+    }
+}
+
+static void request_device_variable(t_h9_external *x, long argc, t_atom *argv) {
+    if (argc > 0 && atom_gettype(argv) == A_LONG) {
+        uint16_t address = (uint16_t)atom_getlong(argv);
+        h9_sysexRequestConfigVar(x->h9, address);
+    }
+}
+
+static void set_device_variable(t_h9_external *x, long argc, t_atom *argv) {
+    if (argc > 1 && atom_gettype(&argv[0]) == A_LONG && atom_gettype(&argv[1]) == A_LONG) {
+        uint16_t address = (uint16_t)atom_getlong(&argv[0]);
+        uint16_t value   = (uint16_t)atom_getlong(&argv[1]);
+        h9_sysexWriteConfigVar(x->h9, (uint16_t)address, (uint16_t)value);
+    }
+}
+
 static bool validate_atom_as_cc(t_atom *atom, uint8_t *cc) {
     long type = atom_gettype(atom);
 
@@ -322,10 +381,10 @@ static bool validate_atom_as_cc(t_atom *atom, uint8_t *cc) {
     return true;
 }
 
-static void set_control(t_h9_external *x, long argc, t_atom* argv) {
+static void set_control(t_h9_external *x, long argc, t_atom *argv) {
     if (argc >= 2 && atom_gettype(&argv[0]) == A_LONG && atom_gettype(&argv[1])) {
-        control_id    control = (control_id)atom_getlong(&argv[0]);
-        control_value new_value   = atom_getfloat(&argv[1]);
+        control_id    control   = (control_id)atom_getlong(&argv[0]);
+        control_value new_value = atom_getfloat(&argv[1]);
 
         if (control >= H9_NUM_KNOBS) {
             // It's not a knob, handle it separately
@@ -335,7 +394,7 @@ static void set_control(t_h9_external *x, long argc, t_atom* argv) {
             control_value exp_max;
             control_value psw;
 
-            switch(x->knobmode) {
+            switch (x->knobmode) {
                 case kKnobMode_ExpMin:
                     h9_knobMap(x->h9, control, &exp_min, &exp_max, &psw);
                     h9_setKnobMap(x->h9, control, new_value, exp_max, psw);
@@ -434,17 +493,17 @@ static void set_knobmode(t_h9_external *x, long argc, t_atom *argv) {
     if (argc > 0) {
         t_symbol *knobmode = atom_getsym(argv);
         if (knobmode == gensym("exp_min")) {
-                x->knobmode = kKnobMode_ExpMin;
-                update_knobs(x);
+            x->knobmode = kKnobMode_ExpMin;
+            update_knobs(x);
         } else if (knobmode == gensym("exp_max")) {
-                x->knobmode = kKnobMode_ExpMax;
-                update_knobs(x);
+            x->knobmode = kKnobMode_ExpMax;
+            update_knobs(x);
         } else if (knobmode == gensym("psw")) {
-                x->knobmode = kKnobMode_PSW;
-                update_knobs(x);
+            x->knobmode = kKnobMode_PSW;
+            update_knobs(x);
         } else {
-                x->knobmode = kKnobMode_Normal;
-                update_knobs(x);
+            x->knobmode = kKnobMode_Normal;
+            update_knobs(x);
         }
     } else {
         // Set it to normal.
@@ -453,14 +512,12 @@ static void set_knobmode(t_h9_external *x, long argc, t_atom *argv) {
     }
 }
 
-static void output_state(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
-    size_t len = argc + 1;
-    t_atom list[len];
-    atom_setsym(list, s);
-    for (size_t i = 0; i < argc; i++) {
-        memcpy(&list[i + 1], &argv[i], sizeof(t_atom));
+static void set_preset_name(t_h9_external *x, long argc, t_atom *argv) {
+    if (argc > 0 && atom_gettype(argv) == A_SYM) {
+        t_symbol *preset_name = atom_getsym(argv);
+        h9_setPresetName(x->h9, preset_name->s_name, strnlen(preset_name->s_name, H9_MAX_NAME_LEN));
+        send_preset_name(x); // Update the field to the actual name as parsed by the h9
     }
-    outlet_list(x->m_outlet_state, gensym("list"), len, list);
 }
 
 /* ============================ PUBLIC function definitions ======================================*/
@@ -507,7 +564,7 @@ void *h9_external_new(t_symbol *s, long argc, t_atom *argv) {
         x->m_outlet_state   = listout((t_object *)x);
 
         // Init the zero state of the object
-        x->knobmode = kKnobMode_Normal;
+        x->knobmode             = kKnobMode_Normal;
         x->h9                   = h9_new();
         x->h9->cc_callback      = h9_cc_callback_handler;
         x->h9->display_callback = h9_display_callback_handler;
@@ -559,8 +616,12 @@ void h9_external_free(t_h9_external *x) {
 
 // Input handlers for each message
 
+// Unimplemented for now, placeholder in case we want to run a stream of integers through midi_parse
+// or to treat ints in some other useful way.
+// NOTE: Sysex should, in this implementation, be input as a list. Use midi_parse or max zl tools
+// (see the example patcher) to capture the sysex into a list before outputting.
 void h9_external_int(t_h9_external *x, long n) {
-    object_post((t_object *)x, "Processing int %ld", n);
+    /* skip */
 }
 
 void h9_external_list(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
@@ -608,6 +669,10 @@ void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
                 set_module(x, optc, opts);
             } else if (sym == gensym("algorithm")) {
                 set_algorithm(x, optc, opts);
+            } else if (sym == gensym("preset_name")) {
+                set_preset_name(x, optc, opts);
+            } else if (sym == gensym("system_variable")) {
+                set_device_variable(x, optc, opts);
             } else {
                 object_error((t_object *)x, "SET: Cannot set %s", sym->s_name);
             }
@@ -621,6 +686,8 @@ void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
 void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
     if (argc > 0 && atom_gettype(argv) == A_SYM) {
         t_symbol *sym = atom_getsym(argv);
+        long    optc = argc - 1;
+        t_atom *opts = &argv[1];
         if (sym == gensym("knobmode")) {
             send_knobmode(x);
         } else if (sym == gensym("midi_rx_cc")) {
@@ -641,6 +708,14 @@ void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
             send_algorithm(x);
         } else if (sym == gensym("algorithms")) {
             send_algorithms(x);
+        } else if (sym == gensym("device_config")) {
+            request_device_config(x);
+        } else if (sym == gensym("device_program")) {
+            request_device_program(x);
+        } else if (sym == gensym("preset_name")) {
+            send_preset_name(x);
+        } else if (sym == gensym("system_variable")) {
+            request_device_variable(x, optc, opts);
         } else {
             object_post((t_object *)x, "Get: Unsupported '%s'", sym->s_name);
         }
