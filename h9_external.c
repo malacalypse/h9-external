@@ -9,7 +9,7 @@
 #include "ext.h"       // standard Max include, always required
 #include "ext_obex.h"  // required for new style Max object
 
-#include "h9.h"
+#include "libh9.h"
 
 ////////////////////////// object struct
 
