@@ -22,7 +22,7 @@ typedef enum knobmode {
 
 typedef struct _h9_external {
     t_object  ob;
-    t_symbol *name;
+    t_symbol *name;  // The instance name, not the H9's name
 
     long  proxy_num;
     void *proxy_list_controls;
@@ -63,6 +63,8 @@ static void output_state(t_h9_external *x, t_symbol *s, long argc, t_atom *argv)
 
 static void input_midi(t_h9_external *x, long argc, t_atom *argv);
 static void input_control(t_h9_external *x, long argc, t_atom *argv);
+
+static void dump_preset(t_h9_external *x);
 
 static void send_control(t_h9_external *x, control_id control, control_value current_value, control_value display_value);
 static void send_knobmode(t_h9_external *x);
@@ -173,7 +175,7 @@ static void input_midi(t_h9_external *x, long argc, t_atom *argv) {
                     list[i] = (char)value;
                 }
                 object_post((t_object *)x, "INPUT (list): Received list of %d characters.", i);
-                if (h9_load(x->h9, (uint8_t *)list, i) == kH9_OK) {
+                if (h9_parse_sysex(x->h9, (uint8_t *)list, i, x->h9->midi_config.sysex_id == 0 ? kH9_RESPOND_TO_ANY_SYSEX_ID : kH9_RESTRICT_TO_SYSEX_ID) == kH9_OK) {
                     object_post((t_object *)x, "INPUT (list): Successfully loaded preset %s.", x->h9->preset->name);
                     send_dirty(x);
                     send_module(x);
@@ -234,6 +236,12 @@ static void update_knobs(t_h9_external *x) {
     }
 }
 
+static void dump_preset(t_h9_external *x) {
+    uint8_t sysex_buffer[1000];
+    size_t  bytes_written = h9_dump(x->h9, sysex_buffer, 1000, true);
+    output_sysex(x, sysex_buffer, bytes_written);
+}
+
 static void send_control(t_h9_external *x, control_id control, control_value current_value, control_value alternate_value) {
     t_atom list[3];
     atom_setlong(&list[0], control);
@@ -284,19 +292,19 @@ static void send_sysex_id(t_h9_external *x) {
 
 static void send_midi_channel(t_h9_external *x) {
     t_atom atom;
-    atom_setlong(&atom, x->h9->midi_config.midi_channel);
+    atom_setlong(&atom, x->h9->midi_config.midi_rx_channel);
     output_state(x, gensym("id"), 1, &atom);
 }
 
 static void send_dirty(t_h9_external *x) {
     t_atom atom;
-    atom_setlong(&atom, x->h9->dirty);
+    atom_setlong(&atom, h9_dirty(x->h9) ? 1.0 : 0.0);
     output_state(x, gensym("dirty"), 1, &atom);
 }
 
 static void send_name(t_h9_external *x) {
     t_atom atom;
-    atom_setsym(&atom, x->name);
+    atom_setsym(&atom, gensym(x->h9->name));
     output_state(x, gensym("name"), 1, &atom);
 }
 
@@ -455,7 +463,7 @@ static void set_midi_channel(t_h9_external *x, long argc, t_atom *argv) {
         if (channel < 1 || channel > 16) {
             object_error((t_object *)x, "Set: Invalid MIDI channel %d.", channel);
         }
-        x->h9->midi_config.midi_channel = (uint8_t)channel;
+        x->h9->midi_config.midi_rx_channel = (uint8_t)channel;
     }
 }
 
@@ -516,7 +524,7 @@ static void set_preset_name(t_h9_external *x, long argc, t_atom *argv) {
     if (argc > 0 && atom_gettype(argv) == A_SYM) {
         t_symbol *preset_name = atom_getsym(argv);
         h9_setPresetName(x->h9, preset_name->s_name, strnlen(preset_name->s_name, H9_MAX_NAME_LEN));
-        send_preset_name(x); // Update the field to the actual name as parsed by the h9
+        send_preset_name(x);  // Update the field to the actual name as parsed by the h9
     }
 }
 
@@ -685,11 +693,13 @@ void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
 
 void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
     if (argc > 0 && atom_gettype(argv) == A_SYM) {
-        t_symbol *sym = atom_getsym(argv);
-        long    optc = argc - 1;
-        t_atom *opts = &argv[1];
+        t_symbol *sym  = atom_getsym(argv);
+        long      optc = argc - 1;
+        t_atom *  opts = &argv[1];
         if (sym == gensym("knobmode")) {
             send_knobmode(x);
+        } else if (sym == gensym("dump")) {
+            dump_preset(x);
         } else if (sym == gensym("midi_rx_cc")) {
             send_rx_cc(x);
         } else if (sym == gensym("midi_tx_cc")) {
@@ -728,11 +738,19 @@ void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
     }
 }
 
+/* What bang does depends on state.
+ * If there is no loaded state, bang will send a discovery request to load the h9 config.
+ *   -> If no response, the state will remain unloaded.
+ * If there IS a loaded state, bang will dump the loaded preset and update the UI.
+ */
 void h9_external_bang(t_h9_external *x) {
     object_post((t_object *)x, "%s says \"Bang!\"", x->name->s_name);
-    uint8_t sysex_buffer[1000];
-    size_t  bytes_written = h9_dump(x->h9, sysex_buffer, 1000, true);
-    h9_sysex_callback_handler((void *)x, sysex_buffer, bytes_written);
+    if (strnlen(x->h9->name, H9_MAX_NAME_LEN) == 0) {
+        request_device_config(x);
+    }
+    if (x->h9->preset->loaded) {
+        dump_preset(x);
+    }
     send_dirty(x);
     send_module(x);
     send_algorithms(x);
