@@ -71,7 +71,8 @@ static void send_knobmode(t_h9_external *x);
 static void send_rx_cc(t_h9_external *x);
 static void send_tx_cc(t_h9_external *x);
 static void send_sysex_id(t_h9_external *x);
-static void send_midi_channel(t_h9_external *x);
+static void send_midi_rx_channel(t_h9_external *x);
+static void send_midi_tx_channel(t_h9_external *x);
 static void send_dirty(t_h9_external *x);
 static void send_name(t_h9_external *x);
 static void send_module(t_h9_external *x);
@@ -82,7 +83,8 @@ static void request_device_config(t_h9_external *x);
 static void request_device_program(t_h9_external *x);
 static bool validate_atom_as_cc(t_atom *atom, uint8_t *cc);
 static void set_midi_cc(t_h9_external *x, uint8_t *cc_map, long argc, t_atom *argv);
-static void set_midi_channel(t_h9_external *x, long argc, t_atom *argv);
+static void set_midi_rx_channel(t_h9_external *x, long argc, t_atom *argv);
+static void set_midi_tx_channel(t_h9_external *x, long argc, t_atom *argv);
 static void set_sysex_id(t_h9_external *x, long argc, t_atom *argv);
 static void set_module(t_h9_external *x, long argc, t_atom *argv);
 static void set_algorithm(t_h9_external *x, long argc, t_atom *argv);
@@ -147,7 +149,7 @@ static void input_midi(t_h9_external *x, long argc, t_atom *argv) {
             if (argc == 2 && atom_gettype(&argv[1]) == A_LONG) {
                 // Try to treat it as CC
                 long cc    = atom_getlong(&argv[0]);
-                long value = atom_getlong(&argv[0]);
+                long value = atom_getlong(&argv[1]);
                 if ((cc > 100) || (value > 127)) {
                     object_post((t_object *)x, "INPUT (list): CC number or value are too large.");
                     return;
@@ -175,10 +177,15 @@ static void input_midi(t_h9_external *x, long argc, t_atom *argv) {
                     list[i] = (char)value;
                 }
                 object_post((t_object *)x, "INPUT (list): Received list of %d characters.", i);
+                // TODO: Provide a means for the h9 parser to respond with the type of processed data
+                //       so we know what to refresh. Or set up observers?
                 if (h9_parse_sysex(x->h9, (uint8_t *)list, i, x->h9->midi_config.sysex_id == 0 ? kH9_RESPOND_TO_ANY_SYSEX_ID : kH9_RESTRICT_TO_SYSEX_ID) == kH9_OK) {
-                    object_post((t_object *)x, "INPUT (list): Successfully loaded preset %s.", x->h9->preset->name);
+                    object_post((t_object *)x, "INPUT (list): Successfully parsed sysex.", x->h9->preset->name);
                     send_dirty(x);
                     send_module(x);
+                    send_name(x);
+                    send_midi_rx_channel(x);
+                    send_midi_tx_channel(x);
                     send_algorithms(x);
                     send_algorithm(x);
                     send_preset_name(x);
@@ -290,11 +297,18 @@ static void send_sysex_id(t_h9_external *x) {
     output_state(x, gensym("id"), 1, &atom);
 }
 
-static void send_midi_channel(t_h9_external *x) {
+static void send_midi_rx_channel(t_h9_external *x) {
     t_atom atom;
     atom_setlong(&atom, x->h9->midi_config.midi_rx_channel);
-    output_state(x, gensym("id"), 1, &atom);
+    output_state(x, gensym("rx_channel"), 1, &atom);
 }
+
+static void send_midi_tx_channel(t_h9_external *x) {
+    t_atom atom;
+    atom_setlong(&atom, x->h9->midi_config.midi_tx_channel);
+    output_state(x, gensym("tx_channel"), 1, &atom);
+}
+
 
 static void send_dirty(t_h9_external *x) {
     t_atom atom;
@@ -457,13 +471,23 @@ static void set_sysex_id(t_h9_external *x, long argc, t_atom *argv) {
     }
 }
 
-static void set_midi_channel(t_h9_external *x, long argc, t_atom *argv) {
+static void set_midi_rx_channel(t_h9_external *x, long argc, t_atom *argv) {
     if (argc > 0 && atom_gettype(argv) == A_LONG) {
         long channel = atom_getlong(argv);
         if (channel < 1 || channel > 16) {
             object_error((t_object *)x, "Set: Invalid MIDI channel %d.", channel);
         }
         x->h9->midi_config.midi_rx_channel = (uint8_t)channel;
+    }
+}
+
+static void set_midi_tx_channel(t_h9_external *x, long argc, t_atom *argv) {
+    if (argc > 0 && atom_gettype(argv) == A_LONG) {
+        long channel = atom_getlong(argv);
+        if (channel < 1 || channel > 16) {
+            object_error((t_object *)x, "Set: Invalid MIDI channel %d.", channel);
+        }
+        x->h9->midi_config.midi_tx_channel = (uint8_t)channel;
     }
 }
 
@@ -671,8 +695,13 @@ void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
                 set_midi_cc(x, x->h9->midi_config.cc_tx_map, optc, opts);
             } else if (sym == gensym("id")) {
                 set_sysex_id(x, optc, opts);
-            } else if (sym == gensym("channel")) {
-                set_midi_channel(x, optc, opts);
+            } else if (sym == gensym("channels")) {
+                set_midi_rx_channel(x, optc, opts);
+                set_midi_tx_channel(x, optc, opts);
+            } else if (sym == gensym("rx_channel")) {
+                set_midi_rx_channel(x, optc, opts);
+            } else if (sym == gensym("tx_channel")) {
+                set_midi_tx_channel(x, optc, opts);
             } else if (sym == gensym("module")) {
                 set_module(x, optc, opts);
             } else if (sym == gensym("algorithm")) {
@@ -706,8 +735,13 @@ void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
             send_tx_cc(x);
         } else if (sym == gensym("id")) {
             send_sysex_id(x);
-        } else if (sym == gensym("channel")) {
-            send_midi_channel(x);
+        } else if (sym == gensym("channels")) {
+            send_midi_rx_channel(x);
+            send_midi_tx_channel(x);
+        } else if (sym == gensym("rx_channel")) {
+            send_midi_rx_channel(x);
+        } else if (sym == gensym("tx_channel")) {
+            send_midi_tx_channel(x);
         } else if (sym == gensym("dirty")) {
             send_dirty(x);
         } else if (sym == gensym("name")) {
