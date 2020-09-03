@@ -40,6 +40,102 @@
 		"assistshowspatchername" : 0,
 		"boxes" : [ 			{
 				"box" : 				{
+					"bgcolor" : [ 0.996078431372549, 0.749019607843137, 0.0, 1.0 ],
+					"fontsize" : 24.0,
+					"id" : "obj-132",
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 131.0, 54.0, 234.0, 33.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 408.0, 44.0, 28.0, 33.0 ],
+					"text" : "3",
+					"textcolor" : [ 0.847058823529412, 0.070588235294118, 0.070588235294118, 1.0 ],
+					"textjustification" : 1
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-133",
+					"linecount" : 11,
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 179.0, 67.0, 150.0, 154.0 ],
+					"presentation" : 1,
+					"presentation_linecount" : 3,
+					"presentation_rect" : [ 435.0, 44.0, 468.850000000000023, 47.0 ],
+					"text" : "Change the settings here to remotely control your H9. Choosing exp_min or exp_max will set the mapping for that knob to one end of the expression pedal or the other. Set it back to normal to commit the changes to the H9. The slider is your expression pedal."
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"bgcolor" : [ 0.996078431372549, 0.749019607843137, 0.0, 1.0 ],
+					"fontsize" : 24.0,
+					"id" : "obj-127",
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 116.0, 39.0, 234.0, 33.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 14.5, 343.0, 28.0, 33.0 ],
+					"text" : "2",
+					"textcolor" : [ 0.847058823529412, 0.070588235294118, 0.070588235294118, 1.0 ],
+					"textjustification" : 1
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-129",
+					"linecount" : 4,
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 164.0, 52.0, 150.0, 60.0 ],
+					"presentation" : 1,
+					"presentation_linecount" : 2,
+					"presentation_rect" : [ 41.5, 343.0, 268.75, 33.0 ],
+					"text" : "Choose \"Device Config\" then \"Device Program\" in the menu above, to synchronize with your H9"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"bgcolor" : [ 0.996078431372549, 0.749019607843137, 0.0, 1.0 ],
+					"fontsize" : 24.0,
+					"id" : "obj-124",
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 101.0, 24.0, 234.0, 33.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 121.0, 64.0, 28.0, 33.0 ],
+					"text" : "1",
+					"textcolor" : [ 0.847058823529412, 0.070588235294118, 0.070588235294118, 1.0 ],
+					"textjustification" : 1
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-113",
+					"linecount" : 2,
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 149.0, 37.0, 150.0, 33.0 ],
+					"presentation" : 1,
+					"presentation_linecount" : 2,
+					"presentation_rect" : [ 148.0, 64.0, 150.0, 33.0 ],
+					"text" : "Choose your H9's MIDI port here:"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"id" : "obj-107",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
@@ -105,13 +201,13 @@
 , 			{
 				"box" : 				{
 					"id" : "obj-154",
-					"linecount" : 5,
+					"linecount" : 6,
 					"maxclass" : "message",
 					"numinlets" : 2,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 24.0, 667.0, 1140.183333333333394, 76.0 ],
-					"text" : "\"pM[SYSTEM] 2 20 5.8.5[1]\r\n2 0 1 2 0 0 0 0 a 0 62 5 11 13 14 32 4c 0 21 22 23 24 20 1f 1e 1d 1c 1b 0 55 56 57 10 12 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 9 0 0 0 0 0 0 0 0 0 0 17 0 4b 3 0 0 1 0 0 0 0 0 0 15 16 0 0 58 0 0 0 54 0 5a 0 25 26 0 3 \r\n3434 4a5b 2ee0 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 0 5805 21 7fe6 3731 3332 4344 482d 5339 6474 20 2020 2020 20 \r\n0 0 1 0 0 0 0 1 0 0 1 1 1 0 0 0 1 0 0 1 0 1 1 1 1 0 0 1 0 0 0 1 \r\nC_78f1\r\n\""
+					"patching_rect" : [ 24.0, 667.0, 1140.183333333333394, 89.0 ],
+					"text" : "\"pM[SYSTEM] 2 20 5.8.5[1]\r\n2 0 1 2 0 0 0 0 a 0 62 5 11 13 14 32 4c 0 21 22 23 24 20 1f 1e 1d 1c 1b 0 55 56 57 10 12 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 9 0 0 0 0 0 0 0 0 0 0 17 0 4b 3 0 0 1 0 0 0 0 0 0 15 16 0 0 58 0 0 0 54 0 5a 0 25 26 0 3 \r\n3434 4a5b 2ee0 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 7fff 0 0 5805 21 7fe6 3731 3332 4344 482d 5339 6474 20 2020 2020 20 \r\n0 0 1 0 0 0 0 1 0 0 1 1 1 0 0 0 1 0 0 1 0 1 1 1 1 0 0 1 0 0 0 1 \r\nC_78f1\r\n\""
 				}
 
 			}
@@ -130,13 +226,14 @@
 , 			{
 				"box" : 				{
 					"id" : "obj-142",
+					"linecount" : 7,
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 570.849999999999909, 42.0, 42.0, 20.0 ],
+					"patching_rect" : [ 570.849999999999909, 42.0, 42.0, 100.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 754.183333333333394, 132.0, 150.0, 20.0 ],
-					"text" : "Dirty"
+					"presentation_rect" : [ 754.183333333333394, 132.0, 180.0, 20.0 ],
+					"text" : "Preset changed since last sync"
 				}
 
 			}
@@ -156,13 +253,14 @@
 , 			{
 				"box" : 				{
 					"id" : "obj-138",
+					"linecount" : 2,
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 159.5, 407.0, 150.0, 20.0 ],
+					"patching_rect" : [ 159.5, 407.0, 150.0, 33.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 753.850000000000023, 106.0, 150.0, 20.0 ],
-					"text" : "Dump Current Preset"
+					"presentation_rect" : [ 753.850000000000023, 106.0, 174.0, 20.0 ],
+					"text" : "Send current preset to pedal"
 				}
 
 			}
@@ -853,7 +951,7 @@
 , 			{
 				"box" : 				{
 					"id" : "obj-68",
-					"items" : [ "AU DLS Synth 1", ",", "IAC Driver Bus 1", ",", "H9 Pedal", ",", "MIDI Monitor (Untitled)", ",", "from Max 1", ",", "from Max 2" ],
+					"items" : [ "AU DLS Synth 1", ",", "IAC Driver Bus 1", ",", "MIDI Monitor (Untitled)", ",", "from Max 1", ",", "from Max 2" ],
 					"maxclass" : "umenu",
 					"numinlets" : 1,
 					"numoutlets" : 3,
@@ -1030,8 +1128,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 1106.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 863.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[8]",
@@ -1056,8 +1152,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 1065.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 822.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[9]",
@@ -1082,8 +1176,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 1024.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 781.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[12]",
@@ -1108,8 +1200,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 983.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 740.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[13]",
@@ -1134,8 +1224,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 942.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 699.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[14]",
@@ -1160,8 +1248,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 901.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 658.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[15]",
@@ -1186,8 +1272,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 860.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 617.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[16]",
@@ -1212,8 +1296,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 819.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 576.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[17]",
@@ -1238,8 +1320,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 778.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 535.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[18]",
@@ -1264,8 +1344,6 @@
 					"outlettype" : [ "", "float" ],
 					"parameter_enable" : 1,
 					"patching_rect" : [ 737.25, 475.5, 41.0, 48.0 ],
-					"presentation" : 1,
-					"presentation_rect" : [ 494.183333333333394, 218.5, 41.0, 48.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.dial[19]",
@@ -2008,7 +2086,7 @@
 					"parameter_enable" : 0,
 					"patching_rect" : [ 1193.25, 421.0, 41.0, 41.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 685.25, 339.0, 41.0, 41.0 ]
+					"presentation_rect" : [ 685.25, 275.5, 41.0, 41.0 ]
 				}
 
 			}
@@ -2023,7 +2101,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 1149.25, 370.5, 50.0, 41.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 500.850000000000023, 282.0, 399.0, 41.0 ],
+					"presentation_rect" : [ 500.850000000000023, 218.5, 399.0, 41.0 ],
 					"saved_attribute_attributes" : 					{
 						"valueof" : 						{
 							"parameter_longname" : "live.slider",
