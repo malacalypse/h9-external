@@ -6,10 +6,10 @@
     @ingroup	malacalypse
 */
 
-#include "ext.h"       // standard Max include, always required
-#include "ext_obex.h"  // required for new style Max object
-
+#include "c74_max.h"
 #include "libh9.h"
+
+using namespace c74::max;
 
 ////////////////////////// object struct
 
@@ -39,20 +39,20 @@ typedef struct _h9_external {
     h9 *h9;
 } t_h9_external;
 
-t_class *h9_external_class;
+static t_class *h9_external_class = nullptr;
 
 ///////////////////////// function prototypes
 //// standard set
-void *h9_external_new(t_symbol *s, long argc, t_atom *argv);
-void  h9_external_free(t_h9_external *x);
-void  h9_external_assist(t_h9_external *x, void *b, long m, long a, char *s);
+static void *h9_external_new(t_symbol *s, long argc, t_atom *argv);
+static void  h9_external_free(t_h9_external *x);
+static void  h9_external_assist(t_h9_external *x, void *b, long m, long a, char *s);
 
-void h9_external_bang(t_h9_external *x);
-void h9_external_identify(t_h9_external *x);
-void h9_external_int(t_h9_external *x, long n);
-void h9_external_set(t_h9_external *x, t_symbol *s, long ac, t_atom *av);
-void h9_external_list(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
-void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
+static void h9_external_bang(t_h9_external *x);
+static void h9_external_identify(t_h9_external *x);
+static void h9_external_int(t_h9_external *x, long n);
+static void h9_external_set(t_h9_external *x, t_symbol *s, long ac, t_atom *av);
+static void h9_external_list(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
+static void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
 
 static void h9_cc_callback_handler(void *ctx, uint8_t midi_channel, uint8_t cc, uint8_t msb, uint8_t lsb);
 static void h9_sysex_callback_handler(void *ctx, uint8_t *sysex, size_t len);
@@ -126,7 +126,7 @@ static void output_state(t_h9_external *x, t_symbol *s, long argc, t_atom *argv)
 static void output_sysex(t_h9_external *x, uint8_t *sysex, size_t len) {
     if (len > 0) {
         // Big atom lists of sysex might be a bit large for the stack, so ask for heap
-        t_atom *list = malloc(sizeof(t_atom) * len);
+        t_atom *list = reinterpret_cast<t_atom *>(malloc(sizeof(t_atom) * len));
         if (list == NULL) {
             object_post((t_object *)x, "Ran out of memory dumping sysex!");
             return;
@@ -590,10 +590,10 @@ void *h9_external_new(t_symbol *s, long argc, t_atom *argv) {
 
         x->proxy_list_controls = proxy_new((t_object *)x, 1, &x->proxy_num);
 
-        x->m_outlet_enabled = intout((t_object *)x);
-        x->m_outlet_sysex   = listout((t_object *)x);
-        x->m_outlet_cc      = listout((t_object *)x);
-        x->m_outlet_state   = listout((t_object *)x);
+        x->m_outlet_enabled = outlet_new((t_object *)x, "int");
+        x->m_outlet_sysex   = outlet_new((t_object *)x, "list");
+        x->m_outlet_cc      = outlet_new((t_object *)x, "list");
+        x->m_outlet_state   = outlet_new((t_object *)x, "list");
 
         // Init the zero state of the object
         x->knobmode             = kKnobMode_Normal;
@@ -666,25 +666,24 @@ void h9_external_list(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
             input_control(x, argc, argv);
             break;
         default:
-            post("list received in inlet %d", inlet);
+            object_post((t_object *)x,"list received in inlet %d", inlet);
             break;
     }
 }
 
 void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
-    t_symbol *sym;
+    t_symbol *sym = atom_getsym(argv);
+    long    optc = argc - 1;
+    t_atom *opts = &argv[1];
 
     switch (atom_gettype(argv)) {
         case A_LONG:
-            post("SET: Integer %ld", atom_getlong(argv));
+            object_post((t_object *)x, "SET: Integer %ld", atom_getlong(argv));
             break;
         case A_FLOAT:
-            post("SET: Float %.2f", atom_getfloat(argv));
+            object_post((t_object *)x, "SET: Float %.2f", atom_getfloat(argv));
             break;
         case A_SYM:
-            sym          = atom_getsym(argv);
-            long    optc = argc - 1;
-            t_atom *opts = &argv[1];
             if (sym == gensym("xyzzy")) {
                 object_post((t_object *)x, "A hollow voice says 'Plugh'");
             } else if (sym == gensym("knobmode")) {
@@ -715,7 +714,7 @@ void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
             }
             break;
         default:
-            post("SET: unknown atom type (%ld)", atom_gettype(argv));
+            object_post((t_object *)x,"SET: unknown atom type (%ld)", atom_gettype(argv));
             break;
     }
 }
@@ -764,7 +763,7 @@ void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
             object_post((t_object *)x, "Get: Unsupported '%s'", sym->s_name);
         }
     } else if (argc == 0) {
-        char *str = s->s_name;
+        const char *str = s->s_name;
         object_error((t_object *)x, "Get: Cannot get %s", str);
     } else {
         // there are arguments but the first one is not a symbol
@@ -794,3 +793,4 @@ void h9_external_bang(t_h9_external *x) {
 void h9_external_identify(t_h9_external *x) {
     object_post((t_object *)x, "Hello, my name is %s", x->name->s_name);
 }
+
