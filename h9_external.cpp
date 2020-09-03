@@ -52,16 +52,16 @@ static t_class *h9_external_class = nullptr;
 
 ///////////////////////// function prototypes
 //// standard set
-static void *h9_external_new(t_symbol *s, long argc, t_atom *argv);
-static void  h9_external_free(t_h9_external *x);
-static void  h9_external_assist(t_h9_external *x, void *b, long m, long a, char *s);
+void *h9_external_new(t_symbol *s, long argc, t_atom *argv);
+void  h9_external_free(t_h9_external *x);
+void  h9_external_assist(t_h9_external *x, void *b, long m, long a, char *s);
 
-static void h9_external_bang(t_h9_external *x);
-static void h9_external_identify(t_h9_external *x);
-static void h9_external_int(t_h9_external *x, long n);
-static void h9_external_set(t_h9_external *x, t_symbol *s, long ac, t_atom *av);
-static void h9_external_list(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
-static void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
+void h9_external_bang(t_h9_external *x);
+void h9_external_identify(t_h9_external *x);
+void h9_external_int(t_h9_external *x, long n);
+void h9_external_set(t_h9_external *x, t_symbol *s, long ac, t_atom *av);
+void h9_external_list(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
+void h9_external_get(t_h9_external *x, t_symbol *s, long argc, t_atom *argv);
 
 static void h9_cc_callback_handler(void *ctx, uint8_t midi_channel, uint8_t cc, uint8_t msb, uint8_t lsb);
 static void h9_sysex_callback_handler(void *ctx, uint8_t *sysex, size_t len);
@@ -317,7 +317,6 @@ static void send_midi_tx_channel(t_h9_external *x) {
     atom_setlong(&atom, x->h9->midi_config.midi_tx_channel);
     output_state(x, gensym("tx_channel"), 1, &atom);
 }
-
 
 static void send_dirty(t_h9_external *x) {
     t_atom atom;
@@ -675,15 +674,15 @@ void h9_external_list(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
             input_control(x, argc, argv);
             break;
         default:
-            object_post((t_object *)x,"list received in inlet %d", inlet);
+            object_post((t_object *)x, "list received in inlet %d", inlet);
             break;
     }
 }
 
 void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
-    t_symbol *sym = atom_getsym(argv);
-    long    optc = argc - 1;
-    t_atom *opts = &argv[1];
+    t_symbol *sym  = atom_getsym(argv);
+    long      optc = argc - 1;
+    t_atom *  opts = &argv[1];
 
     switch (atom_gettype(argv)) {
         case A_LONG:
@@ -723,7 +722,7 @@ void h9_external_set(t_h9_external *x, t_symbol *s, long argc, t_atom *argv) {
             }
             break;
         default:
-            object_post((t_object *)x,"SET: unknown atom type (%ld)", atom_gettype(argv));
+            object_post((t_object *)x, "SET: unknown atom type (%ld)", atom_gettype(argv));
             break;
     }
 }
@@ -802,4 +801,3 @@ void h9_external_bang(t_h9_external *x) {
 void h9_external_identify(t_h9_external *x) {
     object_post((t_object *)x, "Hello, my name is %s", x->name->s_name);
 }
-
