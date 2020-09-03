@@ -4,3 +4,9 @@
 [submodule "lib/libh9"]
 	path = lib/libh9
 	url = git@github.com:malacalypse/libh9.git
+[submodule "lib/max-api"]
+	path = lib/max-api
+	url = git@github.com:Cycling74/max-api.git
+[submodule "lib/max-sdk"]
+	path = lib/max-sdk
+	url = git@github.com:Cycling74/max-sdk.git
