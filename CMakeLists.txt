@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(h9_external)
+project(h9-external)
 
 # Fetch the correct verion of libh9
 message(STATUS "Updating Git Submodules")
